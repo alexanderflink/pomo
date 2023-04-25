@@ -1,8 +1,48 @@
+use argh::FromArgs;
+
+#[derive(FromArgs)]
+/// A simple pomodoro timer
+struct Args {
+    #[argh(subcommand)]
+    subcommand: SubCommands,
+}
+
+#[derive(FromArgs)]
+#[argh(subcommand)]
+enum SubCommands {
+    SubCommandOne(Start),
+    SubCommandTwo(Pause),
+    SubCommandThree(Stop),
+    SubCommandFour(Status),
+}
+
+#[derive(FromArgs)]
+/// Start a new timer
+#[argh(subcommand, name = "start")]
+struct Start {}
+
+#[derive(FromArgs)]
+/// Pause the currently running timer
+#[argh(subcommand, name = "pause")]
+struct Pause {}
+
+#[derive(FromArgs)]
+/// Stop the currently running timer
+#[argh(subcommand, name = "stop")]
+struct Stop {}
+
+#[derive(FromArgs)]
+/// Get the status of the currently running timer
+#[argh(subcommand, name = "status")]
+struct Status {}
+
 /**
 * `main` parses the command line arguments (start, pause, stop, status) and runs other functions
 * accordingly
 */
-fn main() {}
+fn main() {
+    let args: Args = argh::from_env();
+}
 
 /**
 * `start` starts the timer with length of time specified by the user with the --duration flag
