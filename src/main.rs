@@ -1,4 +1,9 @@
 use argh::FromArgs;
+use std::io::prelude::*;
+use std::net::Shutdown;
+use std::os::unix::net::{UnixListener, UnixStream};
+use std::thread;
+use std::time::{Duration, Instant};
 
 #[derive(FromArgs)]
 /// A simple pomodoro timer
@@ -10,10 +15,10 @@ struct Args {
 #[derive(FromArgs)]
 #[argh(subcommand)]
 enum SubCommands {
-    SubCommandOne(Start),
-    SubCommandTwo(Pause),
-    SubCommandThree(Stop),
-    SubCommandFour(Status),
+    Start(Start),
+    Pause(Pause),
+    Stop(Stop),
+    Status(Status),
 }
 
 #[derive(FromArgs)]
@@ -42,6 +47,13 @@ struct Status {}
 */
 fn main() {
     let args: Args = argh::from_env();
+
+    match args.subcommand {
+        SubCommands::Start(_) => start(),
+        SubCommands::Pause(_) => pause(),
+        SubCommands::Stop(_) => stop(),
+        SubCommands::Status(_) => status(),
+    }
 }
 
 /**
@@ -49,7 +61,47 @@ fn main() {
 * (default 25 minutes). It also listens for incoming messages on the /tmp/pomo socket. If it gets a
 * `status` message, it will answer with the time remaining. If it gets a `pause` message, it will pause the current timer. If it gets a `stop` message, it will stop the current timer and exit.
 */
-fn start() {}
+fn start() {
+    let duration = Duration::from_secs(10);
+
+    // sleep until timer is finished
+    let handle = thread::spawn(move || {
+        thread::sleep(duration);
+        println!("Timer finished!")
+    });
+
+    // listen for incoming messages
+    thread::spawn(move || {
+        let start_time = Instant::now();
+
+        let listener = UnixListener::bind("/tmp/pomo").unwrap();
+
+        for stream in listener.incoming() {
+            match stream {
+                Ok(mut stream) => {
+                    let mut incoming_string = String::new();
+                    stream.read_to_string(&mut incoming_string).unwrap();
+
+                    println!("{:?}", incoming_string);
+
+                    let elapsed = start_time.elapsed();
+
+                    let time_left = duration.saturating_sub(elapsed);
+
+                    let response = format!("{}", time_left.as_secs());
+                    stream.write_all(response.as_bytes()).unwrap();
+                }
+
+                Err(err) => {
+                    println!("Error: {:?}", err);
+                    break;
+                }
+            }
+        }
+    });
+
+    handle.join().unwrap();
+}
 
 /**
 * `pause` pauses the timer
@@ -64,4 +116,14 @@ fn stop() {}
 /**
 * `status` connects to the /tmp/pomo socket, sends a `status` message and prints the answer.
 */
-fn status() {}
+fn status() {
+    let mut stream = UnixStream::connect("/tmp/pomo").unwrap();
+
+    stream.write_all(b"status").unwrap();
+    stream.shutdown(Shutdown::Write).unwrap();
+
+    let mut response = String::new();
+    stream.read_to_string(&mut response).unwrap();
+
+    println!("Time left: {}", response);
+}
