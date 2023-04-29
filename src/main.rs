@@ -24,7 +24,11 @@ enum SubCommands {
 #[derive(FromArgs)]
 /// Start a new timer
 #[argh(subcommand, name = "start")]
-struct Start {}
+struct Start {
+    #[argh(option, short = 'd', default = "25")]
+    /// length of timer in minutes
+    duration: u64,
+}
 
 #[derive(FromArgs)]
 /// Pause the currently running timer
@@ -49,11 +53,15 @@ fn main() {
     let args: Args = argh::from_env();
 
     match args.subcommand {
-        SubCommands::Start(_) => start(),
+        SubCommands::Start(start_arg) => {
+            let duration = Duration::new(start_arg.duration * 60, 0);
+
+            start(duration);
+        }
         SubCommands::Pause(_) => pause(),
         SubCommands::Stop(_) => stop(),
         SubCommands::Status(_) => status(),
-    }
+    };
 }
 
 /**
@@ -61,9 +69,11 @@ fn main() {
 * (default 25 minutes). It also listens for incoming messages on the /tmp/pomo socket. If it gets a
 * `status` message, it will answer with the time remaining. If it gets a `pause` message, it will pause the current timer. If it gets a `stop` message, it will stop the current timer and exit.
 */
-fn start() {
-    let duration = Duration::from_secs(10);
+fn start(duration: Duration) {
+    // remove socket if it exists
+    std::fs::remove_file("/tmp/pomo").unwrap_or(());
 
+    println!("Starting timer for {} minutes", duration.as_secs() / 60);
     // sleep until timer is finished
     let handle = thread::spawn(move || {
         thread::sleep(duration);
@@ -81,8 +91,6 @@ fn start() {
                 Ok(mut stream) => {
                     let mut incoming_string = String::new();
                     stream.read_to_string(&mut incoming_string).unwrap();
-
-                    println!("{:?}", incoming_string);
 
                     let elapsed = start_time.elapsed();
 
