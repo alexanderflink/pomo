@@ -1,7 +1,7 @@
+use async_recursion::async_recursion;
 use core::time::Duration;
-use std::sync::Arc;
-use tokio::sync::Mutex;
 use tokio::task;
+use tokio::task::JoinError;
 
 enum TimerType {
     Work,
@@ -11,10 +11,6 @@ enum TimerType {
 struct Timer {
     timer_type: TimerType,
     duration: Duration,
-    // callback: Option<Box<dyn FnMut() + Sync + Send>>,
-    callback: Option<
-        Box<dyn FnMut() -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>> + Send>,
-    >,
 }
 
 impl Timer {
@@ -22,48 +18,62 @@ impl Timer {
         Timer {
             timer_type,
             duration,
-            callback: None,
         }
     }
 
-    fn start(timer: Arc<Mutex<Timer>>) {
-        // sleep in a separate tokio task for timer duration, then call self.on_finished
+    async fn start(&self) -> Result<(), JoinError> {
+        // sleep in a tokio task for timer duration, then call self.on_finished
+        let duration = self.duration.clone();
+        println!("Starting timer for {:?}", duration);
+
         task::spawn(async move {
-            let mut timer_guard = timer.lock().await;
-            tokio::time::sleep(timer_guard.duration).await;
-            timer_guard.callback.as_mut().unwrap()();
-        });
+            tokio::time::sleep(duration).await;
+            println!("Timer finished!");
+        })
+        .await
+    }
+}
+
+struct TimersController {
+    current_timer: Timer,
+}
+
+impl TimersController {
+    fn new() -> Self {
+        TimersController {
+            current_timer: Timer::new(TimerType::Work, Duration::from_secs(5)),
+        }
     }
 
-    fn on_finished(
-        &mut self,
-        callback: impl FnMut() -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + 'static>>
-            + 'static
-            + Send,
-    ) {
-        self.callback = Some(Box::new(callback));
+    async fn start(&mut self) {
+        self.current_timer.start().await;
+        self.timer_finished().await;
+    }
+
+    #[async_recursion]
+    async fn timer_finished(&mut self) {
+        self.current_timer = Timer::new(TimerType::Break, Duration::from_secs(5));
+        self.start().await;
+    }
+
+    fn get_current_timer(&self) -> &Timer {
+        &self.current_timer
     }
 }
 
 #[tokio::main]
 async fn main() {
-    let timer = Arc::new(Mutex::new(Timer::new(
-        TimerType::Work,
-        Duration::from_secs(60),
-    )));
+    // create a controller which will manage timers
+    let mut timers_controller = TimersController::new();
 
-    Timer::start(Arc::clone(&timer));
+    task::spawn(async {
+        // NEEDS IMPLEMENTATION
 
-    let timer = Arc::clone(&timer);
-    let mut timer_guard = timer.lock().await;
-
-    let timer = Arc::clone(&timer);
-    timer_guard.on_finished(move || {
-        let timer = Arc::clone(&timer);
-        Box::pin(async move {
-            let mut timer_guard = timer.lock().await;
-            *timer_guard = Timer::new(TimerType::Break, Duration::from_secs(60));
-            println!("Timer finished!");
-        })
+        // listen for incoming messages on a socket
+        // if message equals "status", get current timer using timers_controller.get_current_timer
+        // respond with time remaining
     });
+
+    // start the current timer, this will await until all timers have been run
+    timers_controller.start().await;
 }
