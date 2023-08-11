@@ -27,6 +27,7 @@ pub enum TimerEvent {
     Finish,
     Start,
     Pause,
+    Stop,
 }
 
 #[derive(Copy, Clone)]
@@ -83,6 +84,8 @@ impl Timer {
         timer_guard.handle = Some(handle);
         timer_guard.last_started_at = Some(Instant::now());
         timer_guard.state = TimerState::Running;
+
+        timer_guard.event(TimerEvent::Start);
     }
 
     pub fn stop(&mut self) {
@@ -92,6 +95,8 @@ impl Timer {
 
         // abort current sleep task
         self.abort_current_task();
+
+        self.event(TimerEvent::Stop);
     }
 
     pub fn pause(&mut self) {
@@ -104,6 +109,8 @@ impl Timer {
             self.abort_current_task();
 
             self.state = TimerState::Paused;
+
+            self.event(TimerEvent::Pause);
         }
     }
 
@@ -157,7 +164,11 @@ impl Timer {
         self.remaining = Duration::ZERO;
         self.state = TimerState::Stopped;
 
-        if let Some(handlers) = self.event_handlers.get(&TimerEvent::Finish) {
+        self.event(TimerEvent::Finish);
+    }
+
+    fn event(&self, event: TimerEvent) {
+        if let Some(handlers) = self.event_handlers.get(&event) {
             for callback in handlers {
                 callback(&*self);
             }

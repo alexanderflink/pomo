@@ -209,7 +209,14 @@ fn on_timer_finished(timer: &Timer) {
 }
 
 fn on_timer_started(timer: &Timer) {
-    println!("Started");
+    let mut path = dirs::home_dir().unwrap();
+    path.push(HOOKS_PATH);
+    path.push(Path::new("start.sh"));
+
+    std::process::Command::new(path)
+        .env("TIMER_TYPE", timer.timer_type().to_string())
+        .spawn()
+        .unwrap();
 }
 
 fn cleanup() {
