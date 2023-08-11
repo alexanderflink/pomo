@@ -1,11 +1,15 @@
 use argh::FromArgs;
+use dirs;
 use pomo::controller::Controller;
-use pomo::timer::TimerType;
+use pomo::timer::{Timer, TimerEvent, TimerType};
 use std::io::prelude::*;
 use std::os::unix::net::{UnixListener, UnixStream};
+use std::path::Path;
+use std::sync::Arc;
 use std::time::Duration;
 
 const SOCKET_PATH: &str = "/tmp/pomo.sock";
+const HOOKS_PATH: &str = ".config/pomo/hooks";
 
 #[derive(FromArgs)]
 /// A simple pomodoro timer
@@ -29,7 +33,7 @@ enum SubCommands {
 /// Start a new timer
 #[argh(subcommand, name = "start")]
 struct Start {
-    #[argh(option, short = 'a', default = "false")]
+    #[argh(switch, short = 'a')]
     /// whether to automatically start the next timer when done
     auto: bool,
     #[argh(option, short = 'd', default = "25")]
@@ -87,9 +91,11 @@ async fn start(args: Start) {
 
         match answer {
             Ok(true) => {
-                let mut stream = UnixStream::connect(SOCKET_PATH).unwrap();
-                stream.write_all(b"start").unwrap();
-                stream.shutdown(std::net::Shutdown::Write).unwrap();
+                // if there is a running timer, send an abort message to it
+                if let Ok(mut stream) = UnixStream::connect(SOCKET_PATH) {
+                    stream.write_all(b"abort").unwrap();
+                    stream.shutdown(std::net::Shutdown::Write).unwrap();
+                }
 
                 cleanup();
             }
@@ -121,10 +127,14 @@ async fn start(args: Start) {
 
     // create a new controller for running timers
     let controller = Controller::new(&duration, &break_duration, auto);
+
+    Controller::on(&controller, TimerEvent::Start, Arc::new(on_timer_started));
+    Controller::on(&controller, TimerEvent::Finish, Arc::new(on_timer_finished));
+
     Controller::start(&controller);
 
     // listen for incoming socket messages
-    let handle = tokio::spawn(async move {
+    let handle = tokio::task::spawn_blocking(move || {
         for stream in listener.incoming() {
             match stream {
                 Ok(mut stream) => {
@@ -133,7 +143,7 @@ async fn start(args: Start) {
                     stream.read_to_string(&mut incoming_string).unwrap();
 
                     match incoming_string.as_str() {
-                        "start" => {
+                        "abort" => {
                             // another instance started, abort this one
                             return;
                         }
@@ -155,6 +165,7 @@ async fn start(args: Start) {
                         }
                         "status" => {
                             let timer = Controller::get_current_timer(&controller);
+                            let timer = timer.lock().unwrap();
                             let time_left = timer.time_left();
 
                             let prefix = match timer.timer_type() {
@@ -184,6 +195,21 @@ async fn start(args: Start) {
     });
 
     handle.await.unwrap();
+}
+
+fn on_timer_finished(timer: &Timer) {
+    let mut path = dirs::home_dir().unwrap();
+    path.push(HOOKS_PATH);
+    path.push(Path::new("finish.sh"));
+
+    std::process::Command::new(path)
+        .env("TIMER_TYPE", timer.timer_type().to_string())
+        .spawn()
+        .unwrap();
+}
+
+fn on_timer_started(timer: &Timer) {
+    println!("Started");
 }
 
 fn cleanup() {

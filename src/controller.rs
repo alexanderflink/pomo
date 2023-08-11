@@ -1,6 +1,6 @@
-use crate::timer::Timer;
-use crate::timer::TimerType;
+use crate::timer::{Timer, TimerEvent, TimerType};
 use flume;
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
@@ -13,6 +13,7 @@ pub struct Controller {
     work_duration: Duration,
     break_duration: Duration,
     auto: bool,
+    event_handlers: HashMap<TimerEvent, Vec<Arc<dyn Fn(&Timer) + Send + Sync>>>,
 }
 
 impl Controller {
@@ -32,6 +33,7 @@ impl Controller {
             rx,
             work_duration: work_duration.clone(),
             break_duration: break_duration.clone(),
+            event_handlers: HashMap::new(),
         }))
     }
 
@@ -45,19 +47,31 @@ impl Controller {
 
         let mut timer_guard = timer.lock().unwrap();
 
-        timer_guard.on_finished(move || {
-            tx.send("timer_finished".to_string()).unwrap();
-        });
+        timer_guard.on(
+            TimerEvent::Finish,
+            Arc::new(move |_: &Timer| {
+                tx.send("timer_finished".to_string()).unwrap();
+            }),
+        );
 
         drop(timer_guard);
 
         timer
     }
 
+    fn attach_timer_handlers(&self) {
+        let mut timer = self.timer.lock().unwrap();
+
+        // attach saved event handlers to timer
+        for (event, handlers) in &self.event_handlers {
+            for handler in handlers {
+                timer.on(*event, handler.clone());
+            }
+        }
+    }
+
     pub fn start(controller: &Arc<Mutex<Self>>) {
         let controller = Arc::clone(controller);
-
-        println!("Controller.start()");
 
         let mut controller_guard_1 = controller.lock().unwrap();
         let rx = controller_guard_1.rx.clone();
@@ -68,7 +82,7 @@ impl Controller {
         task::spawn(async move {
             loop {
                 let msg = rx.recv_async().await.unwrap();
-                println!("1. Received message: {}", msg);
+                println!("{}", msg);
 
                 let mut controller_guard_2 = controller.lock().unwrap();
 
@@ -88,7 +102,9 @@ impl Controller {
     }
 
     pub fn next(controller: &Arc<Mutex<Self>>) {
+        println!("Controller.next()");
         let mut controller = controller.lock().unwrap();
+
         controller.start_next_timer();
     }
 
@@ -117,7 +133,6 @@ impl Controller {
     }
 
     fn start_next_timer(&mut self) {
-        println!("Starting next timer!");
         self.stop_current_timer();
 
         let current_timer = self.timer.lock().unwrap();
@@ -139,12 +154,13 @@ impl Controller {
 
         self.timer = new_timer;
 
+        self.attach_timer_handlers();
+
         self.start_current_timer();
     }
 
     fn on_timer_finished(&mut self) {
-        println!("Timer finished!");
-
+        // call callback
         if self.auto {
             self.start_next_timer();
             return;
@@ -153,21 +169,40 @@ impl Controller {
         // wait for user input or a skip message
         let tx = self.tx.clone();
 
-        task::spawn(async move {
+        task::spawn_blocking(move || {
             println!("Press enter to start the next timer.");
             let _ = std::io::stdin().read_line(&mut String::new());
-            println!("Yes!");
             tx.send("skip".to_string()).unwrap();
-            println!("Sent skip message!");
         });
     }
 
-    pub fn get_current_timer(controller: &Arc<Mutex<Self>>) -> Timer {
+    pub fn get_current_timer(controller: &Arc<Mutex<Self>>) -> Arc<Mutex<Timer>> {
         let controller = Arc::clone(controller);
 
         let controller = controller.lock().unwrap();
-        let timer = controller.timer.lock().unwrap().clone();
-        drop(controller);
+        let timer = Arc::clone(&controller.timer);
+        // drop(controller);
         timer
+    }
+
+    pub fn on(
+        controller: &Arc<Mutex<Self>>,
+        event: TimerEvent,
+        callback: Arc<dyn Fn(&Timer) + Send + Sync>,
+    ) {
+        let mut controller = controller.lock().unwrap();
+
+        // save the handler for future timers
+        controller
+            .event_handlers
+            .entry(event)
+            .or_default()
+            .push(callback.clone());
+
+        // attach event listener to current timer
+        let mut timer = controller.timer.lock().unwrap();
+
+        // attach the listener to the current timer
+        timer.on(event, callback);
     }
 }
