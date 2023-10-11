@@ -1,5 +1,6 @@
 use crate::timer::{Timer, TimerEvent, TimerType};
 use flume;
+use inquire::Confirm;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -168,12 +169,6 @@ impl Controller {
 
         // wait for user input or a skip message
         let tx = self.tx.clone();
-
-        task::spawn_blocking(move || {
-            println!("Press enter to start the next timer.");
-            let _ = std::io::stdin().read_line(&mut String::new());
-            tx.send("skip".to_string()).unwrap();
-        });
     }
 
     pub fn get_current_timer(controller: &Arc<Mutex<Self>>) -> Arc<Mutex<Timer>> {

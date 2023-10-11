@@ -1,5 +1,6 @@
 use argh::FromArgs;
 use dirs;
+use inquire::Confirm;
 use pomo::controller::Controller;
 use pomo::timer::{Timer, TimerEvent, TimerType};
 use std::io::prelude::*;
@@ -7,6 +8,7 @@ use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::task;
 
 const SOCKET_PATH: &str = "/tmp/pomo.sock";
 const HOOKS_PATH: &str = ".config/pomo/hooks";
@@ -198,14 +200,16 @@ async fn start(args: Start) {
 }
 
 fn on_timer_finished(timer: &Timer) {
-    let mut path = dirs::home_dir().unwrap();
-    path.push(HOOKS_PATH);
-    path.push(Path::new("finish.sh"));
-
-    std::process::Command::new(path)
-        .env("TIMER_TYPE", timer.timer_type().to_string())
-        .spawn()
-        .unwrap();
+    task::spawn_blocking(move || {
+        // println!("Press enter to start the next timer.");
+        // let _ = std::io::stdin().read_line(&mut String::new());
+        if let Ok(true) = Confirm::new("Start the next timer?")
+            .with_default(true)
+            .prompt()
+        {
+            // tx.send("skip".to_string()).unwrap();
+        }
+    });
 }
 
 fn on_timer_started(timer: &Timer) {
