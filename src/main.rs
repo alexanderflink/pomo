@@ -200,25 +200,33 @@ async fn start(args: Start) {
 }
 
 fn on_timer_finished(timer: &Timer) {
+    run_hook("finish.sh", timer.timer_type());
+
+    // wait for user input
     task::spawn_blocking(move || {
         // println!("Press enter to start the next timer.");
         // let _ = std::io::stdin().read_line(&mut String::new());
+
         if let Ok(true) = Confirm::new("Start the next timer?")
             .with_default(true)
             .prompt()
         {
-            // tx.send("skip".to_string()).unwrap();
+            write_socket_message("next");
         }
     });
 }
 
 fn on_timer_started(timer: &Timer) {
+    run_hook("start.sh", timer.timer_type());
+}
+
+fn run_hook(hook_name: &str, timer_type: TimerType) {
     let mut path = dirs::home_dir().unwrap();
     path.push(HOOKS_PATH);
-    path.push(Path::new("start.sh"));
+    path.push(Path::new(hook_name));
 
     std::process::Command::new(path)
-        .env("TIMER_TYPE", timer.timer_type().to_string())
+        .env("TIMER_TYPE", timer_type.to_string())
         .spawn()
         .unwrap();
 }
@@ -228,36 +236,32 @@ fn cleanup() {
     std::fs::remove_file(SOCKET_PATH).unwrap_or(());
 }
 
-// TODO: make these functions more DRY
+fn write_socket_message(message: &str) -> UnixStream {
+    let mut stream = UnixStream::connect(SOCKET_PATH).unwrap();
+    stream.write_all(message.as_bytes()).unwrap();
+    stream.shutdown(std::net::Shutdown::Write).unwrap();
+    stream
+}
+
 fn pause() {
     // pause the currently running timer
-    // write to socket and listen for response
-    let mut stream = UnixStream::connect(SOCKET_PATH).unwrap();
-    stream.write_all(b"pause").unwrap();
-    stream.shutdown(std::net::Shutdown::Write).unwrap();
+    write_socket_message("pause");
 }
 
 fn resume() {
     // resume the currently paused timer
-    // write to socket and listen for response
-    let mut stream = UnixStream::connect(SOCKET_PATH).unwrap();
-    stream.write_all(b"resume").unwrap();
-    stream.shutdown(std::net::Shutdown::Write).unwrap();
+    write_socket_message("resume");
 }
 
 fn stop() {
     // stop the currently running timer
-    let mut stream = UnixStream::connect(SOCKET_PATH).unwrap();
-    stream.write_all(b"stop").unwrap();
-    stream.shutdown(std::net::Shutdown::Write).unwrap();
+    write_socket_message("stop");
 }
 
 fn status() {
     // get the status of the currently running timer
     // write to socket and listen for response
-    let mut stream = UnixStream::connect(SOCKET_PATH).unwrap();
-    stream.write_all(b"status").unwrap();
-    stream.shutdown(std::net::Shutdown::Write).unwrap();
+    let mut stream = write_socket_message("status");
 
     let mut incoming_string = String::new();
     stream.read_to_string(&mut incoming_string).unwrap();
@@ -267,8 +271,5 @@ fn status() {
 
 fn next() {
     // skip to the next timer
-    // write to socket and listen for response
-    let mut stream = UnixStream::connect(SOCKET_PATH).unwrap();
-    stream.write_all(b"next").unwrap();
-    stream.shutdown(std::net::Shutdown::Write).unwrap();
+    write_socket_message("next");
 }
