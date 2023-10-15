@@ -48,6 +48,7 @@ impl Controller {
 
         let mut timer_guard = timer.lock().unwrap();
 
+        // add Finish event handler (only used for auto mode to start next timer)
         timer_guard.on(
             TimerEvent::Finish,
             Arc::new(move |_: &Timer| {
@@ -161,14 +162,11 @@ impl Controller {
     }
 
     fn on_timer_finished(&mut self) {
-        // call callback
+        // if Controller is in auto mode, start next timer
         if self.auto {
             self.start_next_timer();
             return;
         }
-
-        // wait for user input or a skip message
-        let tx = self.tx.clone();
     }
 
     pub fn get_current_timer(controller: &Arc<Mutex<Self>>) -> Arc<Mutex<Timer>> {

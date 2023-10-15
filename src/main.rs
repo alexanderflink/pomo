@@ -130,6 +130,27 @@ async fn start(args: Start) {
     // create a new controller for running timers
     let controller = Controller::new(&duration, &break_duration, auto);
 
+    let on_timer_finished = move |timer: &Timer| {
+        run_hook("finish.sh", timer.timer_type());
+
+        if auto {
+            return;
+        }
+
+        // wait for user input
+        task::spawn_blocking(move || {
+            // println!("Press enter to start the next timer.");
+            // let _ = std::io::stdin().read_line(&mut String::new());
+
+            if let Ok(true) = Confirm::new("Start the next timer?")
+                .with_default(true)
+                .prompt()
+            {
+                write_socket_message("next");
+            }
+        });
+    };
+
     Controller::on(&controller, TimerEvent::Start, Arc::new(on_timer_started));
     Controller::on(&controller, TimerEvent::Finish, Arc::new(on_timer_finished));
 
@@ -197,23 +218,6 @@ async fn start(args: Start) {
     });
 
     handle.await.unwrap();
-}
-
-fn on_timer_finished(timer: &Timer) {
-    run_hook("finish.sh", timer.timer_type());
-
-    // wait for user input
-    task::spawn_blocking(move || {
-        // println!("Press enter to start the next timer.");
-        // let _ = std::io::stdin().read_line(&mut String::new());
-
-        if let Ok(true) = Confirm::new("Start the next timer?")
-            .with_default(true)
-            .prompt()
-        {
-            write_socket_message("next");
-        }
-    });
 }
 
 fn on_timer_started(timer: &Timer) {
