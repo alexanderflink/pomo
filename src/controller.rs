@@ -1,11 +1,18 @@
 use crate::timer::{Timer, TimerEvent, TimerType};
 use flume;
-use inquire::Confirm;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
 use tokio::task;
+
+pub struct Config {
+    work_duration: Duration,
+    break_duration: Duration,
+    long_break_duration: Duration,
+    long_break_interval: u64,
+    auto: bool,
+}
 
 pub struct Controller {
     timer: Arc<Mutex<Timer>>,

@@ -39,11 +39,17 @@ struct Start {
     /// whether to automatically start the next timer when done
     auto: bool,
     #[argh(option, short = 'd', default = "25")]
-    /// length of timer in minutes
+    /// length of work period in minutes
     duration: u64,
     #[argh(option, short = 'b', default = "5")]
-    /// length of break timer in minutes
+    /// length of break period in minutes
     break_duration: u64,
+    #[argh(option, default = "4")]
+    /// do a long break every nth time, set to 0 to never do a long break
+    long_break_interval: u64,
+    #[argh(option, default = "15")]
+    /// length of long break in minutes
+    long_break_duration: u64,
 }
 
 #[derive(FromArgs)]
@@ -119,6 +125,8 @@ async fn start(args: Start) {
         auto,
         break_duration,
         duration,
+        long_break_duration,
+        long_break_interval,
     } = args;
 
     let duration = Duration::from_secs(duration /* * 60 */);
