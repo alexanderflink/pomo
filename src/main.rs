@@ -153,6 +153,7 @@ async fn start(args: Start) {
 
     Controller::on(&controller, TimerEvent::Start, Arc::new(on_timer_started));
     Controller::on(&controller, TimerEvent::Finish, Arc::new(on_timer_finished));
+    Controller::on(&controller, TimerEvent::Pause, Arc::new(on_timer_paused));
 
     Controller::start(&controller);
 
@@ -222,6 +223,10 @@ async fn start(args: Start) {
 
 fn on_timer_started(timer: &Timer) {
     run_hook("start.sh", timer.timer_type());
+}
+
+fn on_timer_paused(timer: &Timer) {
+    run_hook("pause.sh", timer.timer_type());
 }
 
 fn run_hook(hook_name: &str, timer_type: TimerType) {
