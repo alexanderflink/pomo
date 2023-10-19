@@ -7,11 +7,11 @@ use std::time::Duration;
 use tokio::task;
 
 pub struct Config {
-    work_duration: Duration,
-    break_duration: Duration,
-    long_break_duration: Duration,
-    long_break_interval: u64,
-    auto: bool,
+    pub work_duration: Duration,
+    pub break_duration: Duration,
+    pub long_break_duration: Duration,
+    pub long_break_interval: u64,
+    pub auto: bool,
 }
 
 pub struct Controller {
@@ -25,12 +25,16 @@ pub struct Controller {
 }
 
 impl Controller {
-    pub fn new(
-        work_duration: &Duration,
-        break_duration: &Duration,
-        auto: bool,
-    ) -> Arc<Mutex<Controller>> {
+    pub fn new(config: Config) -> Arc<Mutex<Controller>> {
         let (tx, rx) = flume::unbounded();
+
+        let Config {
+            auto,
+            break_duration,
+            long_break_duration,
+            long_break_interval,
+            work_duration,
+        } = config;
 
         let timer = Controller::create_timer(tx.clone(), TimerType::Work, work_duration);
 
@@ -48,7 +52,7 @@ impl Controller {
     fn create_timer(
         tx: flume::Sender<String>,
         timer_type: TimerType,
-        duration: &Duration,
+        duration: Duration,
     ) -> Arc<Mutex<Timer>> {
         // create a new timer
         let timer = Timer::new(timer_type, &duration.clone());
@@ -150,12 +154,12 @@ impl Controller {
             TimerType::Work => Controller::create_timer(
                 self.tx.clone(),
                 TimerType::Break,
-                &self.break_duration.clone(),
+                self.break_duration.clone(),
             ),
             TimerType::Break => Controller::create_timer(
                 self.tx.clone(),
                 TimerType::Work,
-                &self.work_duration.clone(),
+                self.work_duration.clone(),
             ),
         };
 

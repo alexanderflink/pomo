@@ -136,7 +136,15 @@ async fn start(args: Start) {
     let listener = UnixListener::bind(SOCKET_PATH).unwrap();
 
     // create a new controller for running timers
-    let controller = Controller::new(&duration, &break_duration, auto);
+    let controller_config = pomo::controller::Config {
+        auto,
+        break_duration,
+        long_break_duration: Duration::from_secs(long_break_duration),
+        long_break_interval,
+        work_duration: duration,
+    };
+
+    let controller = Controller::new(controller_config);
 
     let on_timer_finished = move |timer: &Timer| {
         run_hook("finish.sh", timer.timer_type());
