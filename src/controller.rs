@@ -6,6 +6,7 @@ use std::sync::Mutex;
 use std::time::Duration;
 use tokio::task;
 
+#[derive(Clone)]
 pub struct Config {
     pub work_duration: Duration,
     pub break_duration: Duration,
@@ -18,34 +19,26 @@ pub struct Controller {
     timer: Arc<Mutex<Timer>>,
     tx: flume::Sender<String>,
     rx: flume::Receiver<String>,
-    work_duration: Duration,
-    break_duration: Duration,
-    auto: bool,
+    config: Config,
     event_handlers: HashMap<TimerEvent, Vec<Arc<dyn Fn(&Timer) + Send + Sync>>>,
+    num_finished_timers: u64,
 }
 
 impl Controller {
     pub fn new(config: Config) -> Arc<Mutex<Controller>> {
         let (tx, rx) = flume::unbounded();
 
-        let Config {
-            auto,
-            break_duration,
-            long_break_duration,
-            long_break_interval,
-            work_duration,
-        } = config;
+        let Config { work_duration, .. } = config;
 
         let timer = Controller::create_timer(tx.clone(), TimerType::Work, work_duration);
 
         Arc::new(Mutex::new(Controller {
-            auto,
+            config,
             timer,
             tx,
             rx,
-            work_duration: work_duration.clone(),
-            break_duration: break_duration.clone(),
             event_handlers: HashMap::new(),
+            num_finished_timers: 0,
         }))
     }
 
@@ -146,20 +139,30 @@ impl Controller {
     }
 
     fn start_next_timer(&mut self) {
+        self.num_finished_timers += 1;
+
         self.stop_current_timer();
 
         let current_timer = self.timer.lock().unwrap();
 
         let new_timer = match current_timer.timer_type() {
-            TimerType::Work => Controller::create_timer(
-                self.tx.clone(),
-                TimerType::Break,
-                self.break_duration.clone(),
-            ),
+            TimerType::Work => {
+                let mut duration = self.config.break_duration.clone();
+
+                let num_finished_break_timers = self.num_finished_timers / 2;
+
+                if num_finished_break_timers != 0
+                    && num_finished_break_timers % (self.config.long_break_interval - 1) == 0
+                {
+                    duration = self.config.long_break_duration.clone();
+                }
+
+                Controller::create_timer(self.tx.clone(), TimerType::Break, duration)
+            }
             TimerType::Break => Controller::create_timer(
                 self.tx.clone(),
                 TimerType::Work,
-                self.work_duration.clone(),
+                self.config.work_duration.clone(),
             ),
         };
 
@@ -174,7 +177,7 @@ impl Controller {
 
     fn on_timer_finished(&mut self) {
         // if Controller is in auto mode, start next timer
-        if self.auto {
+        if self.config.auto {
             self.start_next_timer();
             return;
         }
