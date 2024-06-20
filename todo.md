@@ -1,0 +1,3 @@
+- [] error handling
+- [] better messages
+- [] break intervals
