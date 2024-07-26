@@ -2,6 +2,8 @@
 name = "pomo"
 version = "0.1.0"
 edition = "2021"
+description = "Yet another Pomodoro timer CLI."
+license = "ISC"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -17,8 +19,8 @@ inquire = "0.6.2"
 tokio = { version = "1.29.1", features = ["full"] }
 
 [profile.release]
-strip = true  # Automatically strip symbols from the binary.
-opt-level = "z"  # Optimize for size.
+strip = true      # Automatically strip symbols from the binary.
+opt-level = "z"   # Optimize for size.
 lto = true
 codegen-units = 1
 panic = "abort"
