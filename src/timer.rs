@@ -61,7 +61,7 @@ impl Timer {
     pub fn start(timer: &Arc<Mutex<Timer>>) {
         let timer = Arc::clone(timer);
 
-        let mut timer_guard = timer.lock().unwrap();
+        let mut timer_guard = timer.lock().expect("Failed to lock timer");
 
         if let TimerState::Running = timer_guard.state {
             return;
@@ -74,7 +74,7 @@ impl Timer {
         let handle = task::spawn(async move {
             tokio::time::sleep(duration).await;
 
-            let mut timer_guard = timer2.lock().unwrap();
+            let mut timer_guard = timer2.lock().expect("Failed to lock timer");
             timer_guard.finished();
         });
 

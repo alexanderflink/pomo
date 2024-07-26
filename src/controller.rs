@@ -50,13 +50,14 @@ impl Controller {
         // create a new timer
         let timer = Timer::new(timer_type, &duration.clone());
 
-        let mut timer_guard = timer.lock().unwrap();
+        let mut timer_guard = timer.lock().expect("Failed to lock timer");
 
         // add Finish event handler (only used for auto mode to start next timer)
         timer_guard.on(
             TimerEvent::Finish,
             Arc::new(move |_: &Timer| {
-                tx.send("timer_finished".to_string()).unwrap();
+                tx.send("timer_finished".to_string())
+                    .expect("Failed to send timer finished message");
             }),
         );
 
@@ -66,7 +67,7 @@ impl Controller {
     }
 
     fn attach_timer_handlers(&self) {
-        let mut timer = self.timer.lock().unwrap();
+        let mut timer = self.timer.lock().expect("Failed to lock timer");
 
         // attach saved event handlers to timer
         for (event, handlers) in &self.event_handlers {
@@ -79,7 +80,7 @@ impl Controller {
     pub fn start(controller: &Arc<Mutex<Self>>) {
         let controller = Arc::clone(controller);
 
-        let mut controller_guard_1 = controller.lock().unwrap();
+        let mut controller_guard_1 = controller.lock().expect("Failed to lock controller");
         let rx = controller_guard_1.rx.clone();
 
         controller_guard_1.start_current_timer();
@@ -87,9 +88,12 @@ impl Controller {
 
         task::spawn(async move {
             loop {
-                let msg = rx.recv_async().await.unwrap();
+                let msg = rx
+                    .recv_async()
+                    .await
+                    .expect("Failed to listen to socket messages");
 
-                let mut controller_guard_2 = controller.lock().unwrap();
+                let mut controller_guard_2 = controller.lock().expect("Failed to lock controller");
 
                 match msg.as_str() {
                     "timer_finished" => {
@@ -106,19 +110,19 @@ impl Controller {
         });
     }
 
+    // TODO: These methods look like they can be refactored into a single method
     pub fn next(controller: &Arc<Mutex<Self>>) {
-        let mut controller = controller.lock().unwrap();
-
+        let mut controller = controller.lock().expect("Failed to lock controller");
         controller.start_next_timer();
     }
 
     pub fn stop(controller: &Arc<Mutex<Self>>) {
-        let mut controller = controller.lock().unwrap();
+        let mut controller = controller.lock().expect("Failed to lock controller");
         controller.stop_current_timer();
     }
 
     pub fn pause(controller: &Arc<Mutex<Self>>) {
-        let mut controller = controller.lock().unwrap();
+        let mut controller = controller.lock().expect("Failed to lock controller");
         controller.pause_current_timer();
     }
 
@@ -127,12 +131,12 @@ impl Controller {
     }
 
     fn stop_current_timer(&mut self) {
-        let mut timer = self.timer.lock().unwrap();
+        let mut timer = self.timer.lock().expect("Failed to lock timer");
         timer.stop();
     }
 
     fn pause_current_timer(&mut self) {
-        let mut timer = self.timer.lock().unwrap();
+        let mut timer = self.timer.lock().expect("Failed to lock timer");
         timer.pause();
     }
 
@@ -141,7 +145,7 @@ impl Controller {
 
         self.stop_current_timer();
 
-        let current_timer = self.timer.lock().unwrap();
+        let current_timer = self.timer.lock().expect("Failed to lock timer");
 
         let new_timer = match current_timer.timer_type() {
             TimerType::Work => {
@@ -184,7 +188,7 @@ impl Controller {
     pub fn get_current_timer(controller: &Arc<Mutex<Self>>) -> Arc<Mutex<Timer>> {
         let controller = Arc::clone(controller);
 
-        let controller = controller.lock().unwrap();
+        let controller = controller.lock().expect("Failed to lock controller");
         let timer = Arc::clone(&controller.timer);
         // drop(controller);
         timer
@@ -195,7 +199,7 @@ impl Controller {
         event: TimerEvent,
         callback: Arc<dyn Fn(&Timer) + Send + Sync>,
     ) {
-        let mut controller = controller.lock().unwrap();
+        let mut controller = controller.lock().expect("Failed to lock controller");
 
         // save the handler for future timers
         controller
@@ -205,7 +209,7 @@ impl Controller {
             .push(callback.clone());
 
         // attach event listener to current timer
-        let mut timer = controller.timer.lock().unwrap();
+        let mut timer = controller.timer.lock().expect("Failed to lock timer");
 
         // attach the listener to the current timer
         timer.on(event, callback);

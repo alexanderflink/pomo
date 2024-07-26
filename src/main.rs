@@ -101,8 +101,12 @@ async fn start(args: Start) {
             Ok(true) => {
                 // if there is a running timer, send an abort message to it
                 if let Ok(mut stream) = UnixStream::connect(SOCKET_PATH) {
-                    stream.write_all(b"abort").unwrap();
-                    stream.shutdown(std::net::Shutdown::Write).unwrap();
+                    stream
+                        .write_all(b"abort")
+                        .expect("Failed to write to socket");
+                    stream
+                        .shutdown(std::net::Shutdown::Write)
+                        .expect("Failed to shutdown socket");
                 }
 
                 cleanup();
@@ -129,11 +133,12 @@ async fn start(args: Start) {
         long_break_interval,
     } = args;
 
-    let duration = Duration::from_secs(duration /* * 60 */);
-    let break_duration = Duration::from_secs(break_duration /* * 60 */);
+    // multiply the durations by 60 because they are in minutes
+    let duration = Duration::from_secs(duration * 60);
+    let break_duration = Duration::from_secs(break_duration * 60);
 
     // create a new socket listener
-    let listener = UnixListener::bind(SOCKET_PATH).unwrap();
+    let listener = UnixListener::bind(SOCKET_PATH).expect("Failed to bind to socket");
 
     // create a new controller for running timers
     let controller_config = pomo::controller::Config {
@@ -180,7 +185,9 @@ async fn start(args: Start) {
                 Ok(mut stream) => {
                     let mut incoming_string = String::new();
 
-                    stream.read_to_string(&mut incoming_string).unwrap();
+                    stream
+                        .read_to_string(&mut incoming_string)
+                        .expect("Failed to read from socket");
 
                     match incoming_string.as_str() {
                         "abort" => {
@@ -205,7 +212,7 @@ async fn start(args: Start) {
                         }
                         "status" => {
                             let timer = Controller::get_current_timer(&controller);
-                            let timer = timer.lock().unwrap();
+                            let timer = timer.lock().expect("Failed to lock timer");
                             let time_left = timer.time_left();
 
                             let prefix = match timer.timer_type() {
@@ -220,7 +227,7 @@ async fn start(args: Start) {
                                 .write_all(
                                     format!("{} {:02}:{:02}", prefix, minutes, seconds).as_bytes(),
                                 )
-                                .unwrap();
+                                .expect("Failed to write to socket");
                         }
                         _ => {}
                     }
@@ -234,7 +241,7 @@ async fn start(args: Start) {
         }
     });
 
-    handle.await.unwrap();
+    handle.await.expect("Failed to run socket listener");
 }
 
 fn on_timer_started(timer: &Timer) {
@@ -246,14 +253,14 @@ fn on_timer_paused(timer: &Timer) {
 }
 
 fn run_hook(hook_name: &str, timer_type: TimerType) {
-    let mut path = dirs::home_dir().unwrap();
+    let mut path = dirs::home_dir().expect("Failed to get home directory");
     path.push(HOOKS_PATH);
     path.push(Path::new(hook_name));
 
     std::process::Command::new(path)
         .env("TIMER_TYPE", timer_type.to_string())
         .spawn()
-        .unwrap();
+        .expect("Failed to run hook");
 }
 
 fn cleanup() {
@@ -262,9 +269,20 @@ fn cleanup() {
 }
 
 fn write_socket_message(message: &str) -> UnixStream {
-    let mut stream = UnixStream::connect(SOCKET_PATH).unwrap();
-    stream.write_all(message.as_bytes()).unwrap();
-    stream.shutdown(std::net::Shutdown::Write).unwrap();
+    let mut stream = match UnixStream::connect(SOCKET_PATH) {
+        Ok(stream) => stream,
+        Err(_) => {
+            println!("Failed to connect to socket. Please start a timer using 'pomo start' first.");
+            std::process::exit(exitcode::SOFTWARE);
+        }
+    };
+
+    stream
+        .write_all(message.as_bytes())
+        .expect("Failed to write to socket");
+    stream
+        .shutdown(std::net::Shutdown::Write)
+        .expect("Failed to shutdown socket");
     stream
 }
 
@@ -289,7 +307,9 @@ fn status() {
     let mut stream = write_socket_message("status");
 
     let mut incoming_string = String::new();
-    stream.read_to_string(&mut incoming_string).unwrap();
+    stream
+        .read_to_string(&mut incoming_string)
+        .expect("Failed to read from socket");
 
     println!("{}", incoming_string);
 }
