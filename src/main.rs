@@ -1,8 +1,8 @@
 use argh::FromArgs;
 use dirs;
 use inquire::Confirm;
-use pomo::controller::Controller;
-use pomo::timer::{Timer, TimerEvent, TimerType};
+use pomo_cli::controller::Controller;
+use pomo_cli::timer::{Timer, TimerEvent, TimerType};
 use std::io::prelude::*;
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::Path;
@@ -141,7 +141,7 @@ async fn start(args: Start) {
     let listener = UnixListener::bind(SOCKET_PATH).expect("Failed to bind to socket");
 
     // create a new controller for running timers
-    let controller_config = pomo::controller::Config {
+    let controller_config = pomo_cli::controller::Config {
         auto,
         break_duration,
         long_break_duration: Duration::from_secs(long_break_duration),

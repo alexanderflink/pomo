@@ -3,7 +3,7 @@ A small command line utility for running Pomodoro timers. Uses sockets instead o
 
 ## Installation
 ### Using cargo
-`cargo install pomo`
+`cargo install pomo-cli`
 
 ## Commands
 `pomo start`
