@@ -1,3 +1,0 @@
-- [] error handling
-- [] better messages
-- [x] break intervals
