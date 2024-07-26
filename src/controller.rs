@@ -88,7 +88,6 @@ impl Controller {
         task::spawn(async move {
             loop {
                 let msg = rx.recv_async().await.unwrap();
-                println!("{}", msg);
 
                 let mut controller_guard_2 = controller.lock().unwrap();
 
@@ -108,7 +107,6 @@ impl Controller {
     }
 
     pub fn next(controller: &Arc<Mutex<Self>>) {
-        println!("Controller.next()");
         let mut controller = controller.lock().unwrap();
 
         controller.start_next_timer();

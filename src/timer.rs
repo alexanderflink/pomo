@@ -59,8 +59,6 @@ impl Timer {
     }
 
     pub fn start(timer: &Arc<Mutex<Timer>>) {
-        println!("Timer.start()");
-
         let timer = Arc::clone(timer);
 
         let mut timer_guard = timer.lock().unwrap();
@@ -89,8 +87,6 @@ impl Timer {
     }
 
     pub fn stop(&mut self) {
-        println!("Timer.stop()");
-
         self.state = TimerState::Stopped;
 
         // abort current sleep task
@@ -159,8 +155,6 @@ impl Timer {
     }
 
     fn finished(&mut self) {
-        println!("Timer.finished()");
-
         self.remaining = Duration::ZERO;
         self.state = TimerState::Stopped;
 
