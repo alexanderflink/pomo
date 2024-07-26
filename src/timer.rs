@@ -63,10 +63,9 @@ impl Timer {
 
         let mut timer_guard = timer.lock().unwrap();
 
-        // don't restart an already running timer
-        // if let TimerState::Running = timer_guard.state {
-        //     return;
-        // }
+        if let TimerState::Running = timer_guard.state {
+            return;
+        }
 
         let duration = timer_guard.time_left();
 
