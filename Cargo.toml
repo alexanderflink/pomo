@@ -1,9 +1,11 @@
 [package]
 name = "pomo-cli"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "Yet another Pomodoro timer CLI."
 license = "ISC"
+repository = "https://github.com/alexanderflink/pomo"
+homepage = "https://github.com/alexanderflink/pomo"
 
 [[bin]]
 name = "pomo"
