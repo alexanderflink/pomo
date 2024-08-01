@@ -95,7 +95,6 @@ impl Timer {
     }
 
     pub fn pause(&mut self) {
-        println!("Timer.pause()");
         // it's only possible to pause a timer that's running
         if let TimerState::Running = self.state {
             self.remaining = self.time_left();

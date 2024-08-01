@@ -310,8 +310,6 @@ fn status() {
     stream
         .read_to_string(&mut incoming_string)
         .expect("Failed to read from socket");
-
-    println!("{}", incoming_string);
 }
 
 fn next() {
