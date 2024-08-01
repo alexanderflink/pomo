@@ -257,10 +257,10 @@ fn run_hook(hook_name: &str, timer_type: TimerType) {
     path.push(HOOKS_PATH);
     path.push(Path::new(hook_name));
 
-    std::process::Command::new(path)
+    // we don't care if the hook doesn't exist
+    let _ = std::process::Command::new(path)
         .env("TIMER_TYPE", timer_type.to_string())
-        .spawn()
-        .expect("Failed to run hook");
+        .spawn();
 }
 
 fn cleanup() {
