@@ -38,5 +38,15 @@ Get the status of the currently running timer. Prints the timer time as W for Wo
 `pomo next`
 Skip to the next timer without finishing the current one.
 
+## Hooks
+You can create script hooks to run when a timer starts, pauses or is finished. Create the files `start.sh`, `pause.sh` and `finish.sh` in the `~/.config/pomo/` directory, and they will be run during these events. The type of timer (Work, Break) will be available in the `$TIMER_TYPE` variable.
+
+```bash
+#! /bin/bash
+
+say $TIMER_TYPE timer started
+```
+~/.config/pomo/hooks/start.sh
+
 ## Todo
 - [ ] Write tests
